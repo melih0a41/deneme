@@ -149,6 +149,7 @@ XeninInventory.Config.Blacklist = {
   ["spawned_shipment"] = true,
   ["zrush_machinecrate"] = true,
 //  ["zgo2_weedblock"] = true,
+  ["cf_cigarette_pack"] = true,
 }
 
 -- Should peoples inventories be cleared on leaving the server?
