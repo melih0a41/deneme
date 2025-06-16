@@ -1,7 +1,0 @@
-"UnlitGeneric"
-{
-	"$basetexture" "z_anticrash/icons/flag"
-	"$translucent" 1
-	"$vertexalpha" 1
-	"$vertexcolor" 1
-}
