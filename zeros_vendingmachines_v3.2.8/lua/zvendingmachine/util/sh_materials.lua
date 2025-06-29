@@ -1,0 +1,45 @@
+/*
+    Addon id: 0758ce15-60f0-4ef0-95b1-26cf6d4a4ac6
+    Version: v3.2.8 (stable)
+*/
+
+AddCSLuaFile()
+zvm = zvm or {}
+                                                                                                                                                                                                                                                                                                                                                                                                                                                       -- 0a634a1c95b228804b929766b9af17cff8ffcc3dd0f61e75078108af6f36b161
+                                                                                                                                                                                                                                                                                                                                                                                                                                                       -- 705936fcff631091636b99436d9ae6d4b3890a53e3536603fbc30ad118b26ecc
+
+zvm.materials = zvm.materials or {}
+zvm.materials["product_item_amount"] = Material("materials/zerochain/zvendingmachine/product_item_amount.png", "smooth")
+zvm.materials["product_item_amount_long"] = Material("materials/zerochain/zvendingmachine/product_item_amount_long.png", "smooth")
+zvm.materials["reduce_amount"] = Material("materials/zerochain/zvendingmachine/reduce_amount.png", "smooth")
+zvm.materials["product_item_bg"] = Material("materials/zerochain/zvendingmachine/product_item_bg.png", "smooth")
+zvm.materials["product_item_selection"] = Material("materials/zerochain/zvendingmachine/product_item_ui_selection.png", "smooth")
+zvm.materials["product_res_rank"] = Material("materials/zerochain/zvendingmachine/product_res_rank.png", "smooth")
+zvm.materials["product_res_job"] = Material("materials/zerochain/zvendingmachine/product_res_job.png", "smooth")
+zvm.materials["zvm_scanlines"] = Material("materials/zerochain/zvendingmachine/zvm_scanlines.png", "smooth")
+zvm.materials["zvm_screen_dirt"] = Material("materials/zerochain/zvendingmachine/zvm_screen_dirt.png", "smooth")
+zvm.materials["zvm_edit_item"] = Material("materials/zerochain/zvendingmachine/zvm_edit_item.png", "smooth")
+zvm.materials["zvm_cursor"] = Material("materials/zerochain/zvendingmachine/zvm_cursor.png", "smooth")
+
+zvm.colors = zvm.colors or {}
+zvm.colors["black03"] = Color(0, 0, 0, 150)
+zvm.colors["grey01"] = Color(55, 55, 55, 255)
+zvm.colors["grey02"] = Color(150, 150, 150, 255)
+zvm.colors["grey03"] = Color(175, 175, 175, 255)
+zvm.colors["grey04"] = Color(75, 75, 75, 255)
+zvm.colors["white02"] = Color(255, 255, 255, 100)
+zvm.colors["white03"] = Color(255, 255, 255, 25)
+zvm.colors["green01"] = Color(86, 160, 53, 255)
+zvm.colors["green02"] = Color(105, 196, 65)
+zvm.colors["green03"] = Color(97, 165, 63, 255)
+zvm.colors["green04"] = Color(163, 217, 140, 255)
+zvm.colors["green05"] = Color(175, 255, 175, 75)
+zvm.colors["green06"] = Color(175, 255, 175)
+zvm.colors["blue01"] = Color(0, 7, 36, 255)
+zvm.colors["blue02"] = Color(92, 147, 247, 255)
+zvm.colors["blue03"] = Color(82, 131, 198, 255)
+zvm.colors["red01"] = Color(235, 75, 75, 255)
+zvm.colors["yellow01"] = Color(247, 209, 92, 255)
+                                                                                                                                                                                                                                                                                                                                                                                                                                                       -- 0a634a1c95b228804b929766b9af17cff8ffcc3dd0f61e75078108af6f36b161
+                                                                                                                                                                                                                                                                                                                                                                                                                                                       -- 76561198307194389
+                                                                                                                                                                                                                                                                                                                                                                                                                                                       -- 76561198307194380
