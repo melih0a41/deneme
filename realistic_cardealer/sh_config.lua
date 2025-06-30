@@ -27,6 +27,13 @@ RCD.AccidentModule = {
     },
 }
 
+--[[ Model blacklisted ]]
+RCD.ModelBlacklisted = {
+    ["models/dannio/gscooters.mdl"] = true,
+
+    -- Gscooter'ın gerçek model path'ini buraya ekleyin
+}
+
 --[[ All colors used on the addon ]]
 RCD.Colors = {
     ["black"] = Color(0, 0, 0),
@@ -80,7 +87,7 @@ RCD.UnitConvertion = {
 --[[ You can add more currency here ]]
 RCD.Currencies = {
     ["t"] = function(money)
-        return "$"..money
+        return money.. "₺"
     end,
     ["€"] = function(money)
         return money.."€"

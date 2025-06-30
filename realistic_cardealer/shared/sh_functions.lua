@@ -172,6 +172,16 @@ function RCD.GetVehicle(ent)
     local vehc = ent:GetParent()
     ent = (IsValid(vehc) and vehc or ent)
 
+    -- Model blacklist kontrolü
+    if IsValid(ent) then
+        local modelPath = ent:GetModel():lower()
+        for blacklistedModel, _ in pairs(RCD.ModelBlacklisted or {}) do
+            if string.find(modelPath, blacklistedModel:lower()) then
+                return nil
+            end
+        end
+    end
+
     if RCD.VehicleBlacklisted[ent:GetClass()] or not RCD.IsVehicle(ent) then return end
 
     return ent

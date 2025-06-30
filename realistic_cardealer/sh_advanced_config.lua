@@ -16,7 +16,6 @@ RCD.VehicleBlacklisted = {
     ["Chair_Office1"] = true,
     ["Chair_Wood"] = true,
     ["prop_vehicle_prisoner_pod"] = true,
-	["gscooter_electric"] = true,
 }
 
 --[[ Default Settings toggle ]]
