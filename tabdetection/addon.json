@@ -1,0 +1,8 @@
+{
+    "title": "Tab Detection AFK System",
+    "type": "effects",
+    "tags": ["fun", "roleplay"],
+    "description": "Oyuncuların AFK durumunu tespit eder ve kafalarının üzerinde gösterir.",
+    "author_name": "Your Name",
+    "version": "1.0"
+}
