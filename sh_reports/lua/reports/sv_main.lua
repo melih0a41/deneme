@@ -668,8 +668,20 @@ function SH_REPORTS:CloseReport(ply, id)
 		end
 
 		if (report.admin_id ~= "") then
+			-- DÜZELTME: Eski csitsystem için
 			if (report.sit_id) then
-				csitsystem.EndSit(report.sit_id)
+				local sit = GAS.AdminSits.Sits[report.sit_id]
+				if sit then
+					csitsystem.EndSit(report.sit_id)
+				end
+			end
+
+			-- DÜZELTME: GAS AdminSits için
+			if (report.gas_sit_id) then
+				local sit = GAS.AdminSits.Sits[report.gas_sit_id]
+				if sit and not sit.Ended then
+					GAS.AdminSits:EndSit(sit)
+				end
 			end
 
 			if (self.TeleportPlayersBack) then
