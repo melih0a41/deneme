@@ -1,0 +1,9 @@
+"AddonInfo"
+{
+	"name"			"ATM by Crap-Head"
+	"version"		"1.3.1"
+	"up_date"		"2025"
+	"author_name"		"Crap-Head"
+	"author_url"		"https://www.gmodstore.com/users/crap-head"
+	"info"			"Advanced ATM addon with all necessary features to improve your roleplay experience."
+}
