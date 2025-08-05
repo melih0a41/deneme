@@ -1,4 +1,3 @@
-
 local RKS_BoneManipulations = {
 	["Restrained"] = {
 		["ValveBiped.Bip01_R_UpperArm"] = Angle(-28,18,-21),
@@ -90,12 +89,21 @@ net.Receive("tbfy_surr", function(Player, len)
 	end
 end)
 
+-- OPTIMIZATION: Cache frequently used values
+local W, H = ScrW(), ScrH()
+local WHITE = Color(255,255,255,255)
+local BLACK = Color(0,0,0,255)
+
+-- Update cached values on resolution change
+hook.Add("OnScreenSizeChanged", "RKS_UpdateCache", function()
+	W, H = ScrW(), ScrH()
+end)
+
 hook.Add("HUDPaint", "TBFY_Surr", function()
 	local ST = LocalPlayer().Surrendering
 	if ST then
-		local W,H = ScrW(), ScrH()
 		local TimeLeft = math.Round(ST - CurTime(),1)
-		draw.SimpleTextOutlined("Teslim Olunuyor - " .. TimeLeft,"rks_ko_text",ScrW()/2,ScrH()/2,Color(255,255,255,255), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER,2,Color(0,0,0,255))
+		draw.SimpleTextOutlined("Teslim Olunuyor - " .. TimeLeft,"rks_ko_text",W/2,H/2,WHITE, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER,2,BLACK)
 	end
 end)
 
@@ -113,8 +121,8 @@ hook.Add("loadCustomDarkRPItems", "rks_set_drawPINFO", function()
 				pos.y = pos.y - 50
 			end
 
-			draw.DrawNonParsedText("Restrained", "DarkRPHUD2", pos.x + 1, pos.y - 19, Color(0,0,0,255), 1)
-			draw.DrawNonParsedText("Restrained", "DarkRPHUD2", pos.x, pos.y - 20, Color(255,255,255,255) , 1)
+			draw.DrawNonParsedText("Restrained", "DarkRPHUD2", pos.x + 1, pos.y - 19, BLACK, 1)
+			draw.DrawNonParsedText("Restrained", "DarkRPHUD2", pos.x, pos.y - 20, WHITE, 1)
 		end
 		OldDrawPlayerInfo(self)
 	end
@@ -164,22 +172,24 @@ surface.CreateFont( "rks_ko_text", {
 	antialias = true,
 })
 
+-- OPTIMIZATION: Cache color for black screen
+local BLACKSCREEN = Color(0,0,0,255)
+
 hook.Add("HUDPaintBackground", "RKS_PaintHUD", function()
-	if LocalPlayer().RKSBlindfolded then
-		local W,H = ScrW(), ScrH()
-		draw.RoundedBox( 0, 0, 0, W, H, Color( 0, 0, 0, 255 ) )
-	elseif LocalPlayer().RKSKO then
-		local W,H = ScrW(), ScrH()
-		local TimeLeft = math.Round(LocalPlayer().RKSKOStart - CurTime())
-		draw.RoundedBox( 0, 0, 0, W, H, Color( 0, 0, 0, 255 ) )
-		draw.SimpleTextOutlined(string.format(RKS_GetLang("KnockedOut"), TimeLeft),"rks_ko_text",ScrW()/2,ScrH()/12,Color(255,255,255,255), TEXT_ALIGN_CENTER, TEXT_ALIGN_BOTTOM,2,Color(0,0,0,255))
+	local LP = LocalPlayer()
+	if LP.RKSBlindfolded then
+		draw.RoundedBox( 0, 0, 0, W, H, BLACKSCREEN )
+	elseif LP.RKSKO then
+		local TimeLeft = math.Round(LP.RKSKOStart - CurTime())
+		draw.RoundedBox( 0, 0, 0, W, H, BLACKSCREEN )
+		draw.SimpleTextOutlined(string.format(RKS_GetLang("KnockedOut"), TimeLeft),"rks_ko_text",W/2,H/12,WHITE, TEXT_ALIGN_CENTER, TEXT_ALIGN_BOTTOM,2,BLACK)
 	end
 end)
 
 local KeyToCheck = RKidnapConfig.KEY
 hook.Add("KeyPress", "RKS_DragKeyPress", function(Player, Key)
 	if Key == KeyToCheck then
-        if !Player:InVehicle() and !Player:GetNWBool("rks_restrained", false) then
+		if !Player:InVehicle() and !Player:GetNWBool("rks_restrained", false) then
 			local Trace = {}
 			Trace.start = Player:GetShootPos();
 			Trace.endpos = Trace.start + Player:GetAimVector() * 100;
@@ -193,10 +203,10 @@ hook.Add("KeyPress", "RKS_DragKeyPress", function(Player, Key)
 				UnRestrainM:AddOption(RKS_GetLang("Drag"), function() net.Start("rks_drag") net.WriteEntity(TEnt) net.SendToServer() end)
 				UnRestrainM:Open()
 
-				UnRestrainM:SetPos(ScrW()/2,ScrH()/2)
+				UnRestrainM:SetPos(W/2,H/2)
 			end
 		end
-    end
+	end
 end)
 
 surface.CreateFont( "rks_inspect_headline", {
@@ -252,7 +262,7 @@ function PANEL:Init()
 end
 
 function PANEL:Paint(W,H)
-	draw.SimpleText(self.Name, "rks_inspect_weaponname", W/2, 0, Color(0,0,0,255), TEXT_ALIGN_CENTER, TEXT_ALIGN_TOP )
+	draw.SimpleText(self.Name, "rks_inspect_weaponname", W/2, 0, BLACK, TEXT_ALIGN_CENTER, TEXT_ALIGN_TOP )
 end
 
 function PANEL:PerformLayout(W,H)
@@ -318,17 +328,17 @@ function PANEL:Init()
 			draw.RoundedBoxEx(8, 0, 0, W, H, SecondPanelColor, false, false, true, true)
 		end
 		local TW, TH = surface.GetTextSize("Name: ")
-		draw.SimpleText("Name:", "rks_inspect_headline", 5, 10, Color(0,0,0,255), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER )
-		draw.SimpleText(self.Name, "rks_inspect_information", 5+TW, 10, Color(0,0,0,255), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER )
+		draw.SimpleText("Name:", "rks_inspect_headline", 5, 10, BLACK, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER )
+		draw.SimpleText(self.Name, "rks_inspect_information", 5+TW, 10, BLACK, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER )
 		TW, TH = surface.GetTextSize("SteamID: ")
-		draw.SimpleText("SteamID:", "rks_inspect_headline", 5, 25, Color(0,0,0,255), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER )
-		draw.SimpleText(self.SteamID, "rks_inspect_information", 5 + TW, 25, Color(0,0,0,255), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER )
+		draw.SimpleText("SteamID:", "rks_inspect_headline", 5, 25, BLACK, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER )
+		draw.SimpleText(self.SteamID, "rks_inspect_information", 5 + TW, 25, BLACK, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER )
 		TW, TH = surface.GetTextSize("Job: ")
-		draw.SimpleText("Job:", "rks_inspect_headline", 5, 40, Color(0,0,0,255), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER )
-		draw.SimpleText(self.Job, "rks_inspect_information", 5 + TW, 40, Color(0,0,0,255), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER )
+		draw.SimpleText("Job:", "rks_inspect_headline", 5, 40, BLACK, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER )
+		draw.SimpleText(self.Job, "rks_inspect_information", 5 + TW, 40, BLACK, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER )
 		TW, TH = surface.GetTextSize("Wallet: ")
-		draw.SimpleText("Wallet:", "rks_inspect_headline", 5, 55, Color(0,0,0,255), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER )
-		draw.SimpleText(self.Wallet, "rks_inspect_information", 5 + TW, 55, Color(0,0,0,255), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER )
+		draw.SimpleText("Wallet:", "rks_inspect_headline", 5, 55, BLACK, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER )
+		draw.SimpleText(self.Wallet, "rks_inspect_information", 5 + TW, 55, BLACK, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER )
 	end
 
 	self.WeaponHeader = vgui.Create("DPanel", self)
@@ -472,7 +482,7 @@ end
 local WepsPerLine = 4
 local Width, Height, Padding = 300, 330, 5
 function PANEL:PerformLayout()
-	self:SetPos(ScrW()/2-Width/2, ScrH()/2-Height/2)
+	self:SetPos(W/2-Width/2, H/2-Height/2)
 	self:SetSize(Width, TopH+InfoH+WeaponH+WeaponListH)
 
 	self.TopDPanel:SetPos(0,0)

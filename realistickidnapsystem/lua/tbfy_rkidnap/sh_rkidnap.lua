@@ -140,7 +140,7 @@ hook.Add("SetupMove", "rks_setupmove", function(Player, mv)
         else
     EntPos = AProp:GetPos()
         end
-		local AEnt = AProp:GetAttachedEntity()
+		local AEnt = AProp:GetAttatchedEntity()
 
 		if IsValid(AEnt) then
 			EntPos = AEnt:GetPos()

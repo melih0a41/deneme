@@ -1,4 +1,4 @@
--- realisticidnapsystem/lua/weapons/weapon_r_baton/shared.lua
+-- realistickidnapsystem/lua/weapons/weapon_r_baton/shared.lua
 
 if SERVER then
     AddCSLuaFile("shared.lua")
@@ -84,7 +84,7 @@ function SWEP:PrimaryAttack()
     end)
 end
 
--- YENİ EKLENEN FONKSİYON: Sağ tık ile taşıma/bırakma (Debug Print Eklendi)
+-- OPTIMIZATION: Cache rank checking
 function SWEP:SecondaryAttack()
     if SERVER then
         self.Weapon:SetNextSecondaryFire(CurTime() + 0.5)
@@ -92,56 +92,50 @@ function SWEP:SecondaryAttack()
         local Trace = Player:GetEyeTrace()
         local TEnt = Trace.Entity
 
-        print("[Baton Debug] Sağ Tık Yapıldı - Oyuncu: " .. Player:Nick())
+        -- Cache rank check
+        if not self.RankChecked then
+            local playerRank = ""
+            -- Kullandığınız admin moduna göre doğru fonksiyonun başındaki -- işaretini kaldırın!
+            -- ULX veya ServerGuard (Genellikle):
+            if Player.GetUserGroup then playerRank = string.lower(Player:GetUserGroup()) end
+            -- Alternatif ServerGuard:
+            -- if Player.sgGetRank then playerRank = string.lower(Player:sgGetRank()) end
+            -- FAdmin (Emin değilseniz test edin):
+            -- if Player.FAdmin_GetRank then playerRank = string.lower(Player:FAdmin_GetRank()) end
 
-        local playerRank = ""
-        -- Kullandığınız admin moduna göre doğru fonksiyonun başındaki -- işaretini kaldırın!
-        -- ULX veya ServerGuard (Genellikle):
-        if Player.GetUserGroup then playerRank = string.lower(Player:GetUserGroup()) end
-        -- Alternatif ServerGuard:
-        -- if Player.sgGetRank then playerRank = string.lower(Player:sgGetRank()) end
-        -- FAdmin (Emin değilseniz test edin):
-        -- if Player.FAdmin_GetRank then playerRank = string.lower(Player:FAdmin_GetRank()) end
-
-        print("[Baton Debug] Oyuncu Rütbesi: " .. playerRank)
-
-        if playerRank == "" or not allowedCarryRanks[playerRank] then
-            print("[Baton Debug] Rütbe kontrolü BAŞARISIZ! İzin verilen rütbe değil veya rütbe alınamadı.")
-            return -- Eğer izin verilen rütbeler listesinde yoksa işlemi bitir.
+            self.CanCarry = allowedCarryRanks[playerRank] or false
+            self.RankChecked = true
         end
 
-        print("[Baton Debug] Rütbe kontrolü BAŞARILI!")
+        if not self.CanCarry then return end
 
         if IsValid(Player.RKSDragging) then
-            print("[Baton Debug] Oyuncu zaten birini taşıyor. Bırakılıyor: " .. Player.RKSDragging:Nick())
             Player.RKSDragging:RKSCancelDrag()
         else
-            print("[Baton Debug] Oyuncu kimseyi taşımıyor. Hedef kontrol ediliyor...")
-            if not IsValid(TEnt) then
-                 print("[Baton Debug] Hedef Geçersiz!")
-                 return
-            end
-            print("[Baton Debug] Hedef Entity Sınıfı: " .. TEnt:GetClass())
+            if not IsValid(TEnt) then return end
 
             local Distance = Player:EyePos():Distance(TEnt:GetPos());
-            print("[Baton Debug] Hedef Mesafesi: " .. Distance)
-            if Distance > 125 then
-                print("[Baton Debug] Hedef çok uzakta!")
-                return
-            end
+            if Distance > 125 then return end
 
             local isRagdoll = TEnt:GetClass() == "prop_ragdoll"
             local hasPlayer = IsValid(TEnt.Player)
             local isKnockedOut = hasPlayer and (TEnt.Player.RKSKnockedOut or TEnt.RKSRagdoll)
 
-            print("[Baton Debug] Ragdoll mu?: " .. tostring(isRagdoll) .. " - Oyuncusu Var mı?: " .. tostring(hasPlayer) .. " - Baygın mı?: " .. tostring(isKnockedOut))
-
             if isRagdoll and hasPlayer and isKnockedOut then
-                print("[Baton Debug] Geçerli ragdoll bulundu! Taşıma başlatılıyor: " .. TEnt.Player:Nick())
                 Player:RKSDragPlayer(TEnt.Player)
-            else
-                 print("[Baton Debug] Geçerli ragdoll bulunamadı!")
             end
         end
     end
+end
+
+-- Clear cache on weapon switch
+function SWEP:OnRemove()
+    self.RankChecked = false
+    self.CanCarry = false
+end
+
+function SWEP:Holster()
+    self.RankChecked = false
+    self.CanCarry = false
+    return true
 end

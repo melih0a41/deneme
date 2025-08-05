@@ -55,9 +55,10 @@ function SWEP:Think()
 	if SERVER then
 		local CurT = CurTime()
 		local HP = self:GetRestrainsHP()
+		-- OPTIMIZATION: Only regenerate if needed and check less frequently
 		if HP < 100 and (self.NextReg or 0) < CurT then
-			self:SetRestrainsHP(math.Approach(HP, 100, 0.065))
-			self.NextReg = CurTime()+0.05
+			self:SetRestrainsHP(math.min(HP + 0.325, 100)) -- Regen 5x faster but check 5x less
+			self.NextReg = CurT + 0.25 -- Check every 0.25s instead of 0.05s
 		end
 	end
 end
@@ -70,18 +71,33 @@ function SWEP:DrawWorldModel()
 end
 
 if CLIENT then
+	-- OPTIMIZATION: Cache values
+	local W, H = ScrW()/2, ScrH()/2
+	local WHITE = Color(255,255,255,255)
+	local BLACK = Color(0,0,0,255)
+	local GRAY = Color(110,100,100,255)
+	local GREEN = Color(50,200,5,200)
+	
+	hook.Add("OnScreenSizeChanged", "RKS_Restrained_UpdateCache", function()
+		W, H = ScrW()/2, ScrH()/2
+	end)
+	
 	function SWEP:DrawHUD()
-		local W,H = ScrW()/2, ScrH()/2
-
-		draw.SimpleTextOutlined(RKS_GetLang("RestrainedText"),"Trebuchet24",W,H/6,Color(255,255,255,255), TEXT_ALIGN_CENTER, TEXT_ALIGN_BOTTOM,2,Color(0,0,0,255))
+		draw.SimpleTextOutlined(RKS_GetLang("RestrainedText"),"Trebuchet24",W,H/6,WHITE, TEXT_ALIGN_CENTER, TEXT_ALIGN_BOTTOM,2,BLACK)
 
 		if RKS_GetConf("RESTRAINS_EnableEscape") then
 			local BoxW = 200
 			local BoxSW = W-BoxW/2
-			surface.SetDrawColor(Color(0,0,0,255))
-			surface.DrawOutlinedRect(BoxSW-1, H/5.5-1, BoxW+2, 27)
-			draw.RoundedBox(0, BoxSW, H/5.5, BoxW, 25, Color(110,100,100,255))
-			draw.RoundedBox(0, BoxSW, H/5.5, BoxW*self:GetRestrainsHP()/100, 25, Color(50,200,5,200))
+			local BoxY = H/5.5
+			
+			surface.SetDrawColor(BLACK)
+			surface.DrawOutlinedRect(BoxSW-1, BoxY-1, BoxW+2, 27)
+			draw.RoundedBox(0, BoxSW, BoxY, BoxW, 25, GRAY)
+			
+			local HP = self:GetRestrainsHP()
+			if HP > 0 then
+				draw.RoundedBox(0, BoxSW, BoxY, BoxW*HP/100, 25, GREEN)
+			end
 		end
 	end
 end

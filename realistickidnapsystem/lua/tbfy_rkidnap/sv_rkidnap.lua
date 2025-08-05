@@ -1,4 +1,3 @@
-
 resource.AddWorkshop("804809965")
 
 util.AddNetworkString("rks_blindfold")
@@ -15,6 +14,16 @@ util.AddNetworkString("rks_bonemanipulate")
 util.AddNetworkString("tbfy_surr")
 
 local PLAYER = FindMetaTable("Player")
+
+-- OPTIMIZATION: Cache tables for faster lookups
+local GaggedPlayers = {}
+local RKSPGettingDragged = {}
+local RKS_DCPlayers = RKS_DCPlayers or {}
+local RKS_Surrendering = {}
+
+-- OPTIMIZATION: Cache CurTime() calls
+local NextDragThink = 0
+local NextSurrenderThink = 0
 
 hook.Add("bLogs_FullyLoaded","RKS_bLogsInit",function()
 	if ((not GAS or not GAS.Logging) and bLogs) then
@@ -176,32 +185,33 @@ function PLAYER:RKSKnockout(KnockedoutBy)
 end
 
 function PLAYER:CleanUpRKS(GWeapons, BGRemove, NoReset)
-  self.RKRestrained = false
+	self.RKRestrained = false
 	if RKS_GetConf("RESTRAINS_StarWarsRestrains") then
 		self:SetupRKSBones("Restrained_StarWars", true)
 	else
 		self:SetupRKSBones("Restrained", true)
 	end
-  if !NoReset then
-      local CBy = self.RestrainedBy
-      if IsValid(CBy) then
-          CBy.RestrainedPlayer = nil
-      end
-      self.RestrainedBy = nil
-  end
-  self:SetupRestrains()
-  self:RKSCancelDrag()
+	if !NoReset then
+		local CBy = self.RestrainedBy
+		if IsValid(CBy) then
+			CBy.RestrainedPlayer = nil
+		end
+		self.RestrainedBy = nil
+	end
+	self:SetupRestrains()
+	self:RKSCancelDrag()
 
 	if self.RKS_Attatched then
 		self:RKS_RemoveAttatch()
 	end
 
-  if GWeapons then
-      self:SetupRKSWeapons()
-  end
+	if GWeapons then
+		self:SetupRKSWeapons()
+	end
 
 	if BGRemove then
 		self.Gagged = false
+		GaggedPlayers[self] = nil -- OPTIMIZATION: Remove from gagged table
 		self:SetupRKSGag()
 
 		self.Blindfolded = false
@@ -264,7 +274,7 @@ local RKS_BoneManipulations = {
 }
 
 function PLAYER:SetupRKSBones(Type, Reset)
-    if RKidnapConfig.BoneManipulateClientside then
+	if RKidnapConfig.BoneManipulateClientside then
 		net.Start("rks_bonemanipulate")
 			net.WriteEntity(self)
 			net.WriteString(Type)
@@ -317,11 +327,15 @@ function PLAYER:TBFY_ToggleSurrender()
 	end
 end
 
-local RKS_Surrendering = {}
+-- OPTIMIZATION: Think hook with throttling
 hook.Add("Think", "TBFY_Surrender", function()
+	local ct = CurTime()
+	if NextSurrenderThink > ct then return end
+	NextSurrenderThink = ct + 0.1 -- Check every 0.1 seconds
+	
 	for k,v in pairs(RKS_Surrendering) do
 		local P, T = v.P, v.ST
-		if v.ST < CurTime() then
+		if v.ST < ct then
 			RKS_Surrendering[P:SteamID()] = nil
 			net.Start("tbfy_surr")
 				net.WriteFloat(0)
@@ -361,14 +375,14 @@ hook.Add("demoteTeam", "TBFY_pre_demote", function(Player)
 end)
 
 hook.Add("playerCanChangeTeam", "TBFY_NoChangeJobSurrender", function(Player, Team)
-  if Player.TBFY_Surrendered and !Player.being_demoted then
+	if Player.TBFY_Surrendered and !Player.being_demoted then
 		return false, ""
 	end
 	Player.being_demoted = false
 end)
 
 hook.Add("OnPlayerChangedTeam", "TBFY_NoChangeJobSurrender", function(Player, Team)
-  if Player.TBFY_Surrendered then
+	if Player.TBFY_Surrendered then
 		Player:TBFY_ToggleSurrender()
 	end
 end)
@@ -390,9 +404,9 @@ hook.Add("CanPlayerEnterVehicle", "TBFY_CanPlayerEnterVehicle", function(Player,
 end)
 
 hook.Add("PlayerDeath", "TBFY_OnDeathSurrender", function( Player, Inflictor, Attacker )
-    if Player.TBFY_Surrendered then
-        Player:TBFY_ToggleSurrender()
-    end
+	if Player.TBFY_Surrendered then
+		Player:TBFY_ToggleSurrender()
+	end
 end)
 
 hook.Add("PlayerUse", "TBFY_DisableUseSurrender", function(Player, Entity)
@@ -400,30 +414,30 @@ hook.Add("PlayerUse", "TBFY_DisableUseSurrender", function(Player, Entity)
 end)
 
 function PLAYER:SetupRestrains()
-		if RKS_GetConf("RESTRAINS_StarWarsRestrains") then
-			TBFY_SH:TogglePEquip(self, "restrains_starwars", self.RKRestrained)
-		else
-			TBFY_SH:TogglePEquip(self, "restrains", self.RKRestrained)
-		end
-	  self:SetNWBool("rks_restrained", self.RKRestrained)
+	if RKS_GetConf("RESTRAINS_StarWarsRestrains") then
+		TBFY_SH:TogglePEquip(self, "restrains_starwars", self.RKRestrained)
+	else
+		TBFY_SH:TogglePEquip(self, "restrains", self.RKRestrained)
+	end
+	self:SetNWBool("rks_restrained", self.RKRestrained)
 end
 
 function PLAYER:SetupRKSWeapons()
-  if self.RKRestrained then
-    self.RKSStoreWTBL = {}
-    for k,v in pairs(self:GetWeapons()) do
+	if self.RKRestrained then
+		self.RKSStoreWTBL = {}
+		for k,v in pairs(self:GetWeapons()) do
 			local WData = {Class = v:GetClass()}
 			WData.IsFromArmory = v.IsFromArmory
 			WData.PrometheusGiven = v.PrometheusGiven
 			WData.isPermanent = v.isPermanent
 			self.RKSStoreWTBL[k] = WData
-    end
-    self:StripWeapons()
+		end
+		self:StripWeapons()
 		self:Give("weapon_r_restrained")
-    elseif !self.RKRestrained then
+	elseif !self.RKRestrained then
 		self:StripWeapon("weapon_r_restrained")
-    for k,v in pairs(self.RKSStoreWTBL) do
-      local SWEP = self:Give(v.Class)
+		for k,v in pairs(self.RKSStoreWTBL) do
+			local SWEP = self:Give(v.Class)
 			SWEP.IsFromArmory = v.IsFromArmory
 			SWEP.PrometheusGiven = v.PrometheusGiven
 			SWEP.isPermanent = v.isPermanent
@@ -437,10 +451,10 @@ function PLAYER:SetupRKSWeapons()
 					self:RemoveAmmo(AmmoToRemove, AmmoType)
 				end
 			end
-        end
-        self.RKSStoreWTBL = {}
-				self:SelectWeapon(RKS_GetConf("RESTRAINS_UnrestrainForcedWeaponSelection"))
-    end
+		end
+		self.RKSStoreWTBL = {}
+		self:SelectWeapon(RKS_GetConf("RESTRAINS_UnrestrainForcedWeaponSelection"))
+	end
 end
 
 function PLAYER:RKSRestrain(RestrainedBy)
@@ -451,21 +465,21 @@ function PLAYER:RKSRestrain(RestrainedBy)
 		RPValid = true
 	end
 
-  if !self.RKRestrained then
+	if !self.RKRestrained then
 		if self.TBFY_Surrendered then
 			self:TBFY_ToggleSurrender()
 		end
-    self.RKRestrained = true
-    self.RestrainedBy = RestrainedBy
-    RestrainedBy.RestrainedPlayer = self
+		self.RKRestrained = true
+		self.RestrainedBy = RestrainedBy
+		RestrainedBy.RestrainedPlayer = self
 		if RKS_GetConf("RESTRAINS_StarWarsRestrains") then
 			self:SetupRKSBones("Restrained_StarWars")
 		else
 			self:SetupRKSBones("Restrained")
 		end
-    self:SetupRestrains()
-    self:SetupRKSWeapons()
-    TBFY_Notify(self, 1, 4, string.format(RKS_GetLang("RestrainedBy"), RNick))
+		self:SetupRestrains()
+		self:SetupRKSWeapons()
+		TBFY_Notify(self, 1, 4, string.format(RKS_GetLang("RestrainedBy"), RNick))
 		if RPValid then
 			TBFY_Notify(RestrainedBy, 1, 4, string.format(RKS_GetLang("Restrainer"), self:Nick()))
 		end
@@ -478,14 +492,14 @@ function PLAYER:RKSRestrain(RestrainedBy)
 				end
 			end)
 		end
-  elseif self.RKRestrained then
-    self:CleanUpRKS(true, true)
+	elseif self.RKRestrained then
+		self:CleanUpRKS(true, true)
 
-    TBFY_Notify(self, 1, 4, string.format(RKS_GetLang("ReleasedBy"), RNick))
+		TBFY_Notify(self, 1, 4, string.format(RKS_GetLang("ReleasedBy"), RNick))
 		if RPValid then
 			TBFY_Notify(RestrainedBy, 1, 4, string.format(RKS_GetLang("Releaser"), self:Nick()))
 		end
-  end
+	end
 
 	hook.Call("RKS_Restrain", GAMEMODE, self, RestrainedBy)
 end
@@ -516,15 +530,16 @@ function PLAYER:RKSBlindfold(BlindfoldedBy)
 	self:SetupBlindfold()
 
 	if self.Blindfolded then
-    TBFY_Notify(self, 1, 4, string.format(RKS_GetLang("BlindfoldedBy"), BlindfoldedBy:Nick()))
-    TBFY_Notify(BlindfoldedBy, 1, 4, string.format(RKS_GetLang("Blindfolder"), self:Nick()))
+		TBFY_Notify(self, 1, 4, string.format(RKS_GetLang("BlindfoldedBy"), BlindfoldedBy:Nick()))
+		TBFY_Notify(BlindfoldedBy, 1, 4, string.format(RKS_GetLang("Blindfolder"), self:Nick()))
 	elseif !self.Blindfolded then
-    TBFY_Notify(self, 1, 4, string.format(RKS_GetLang("UnBlindfoldedBy"), BlindfoldedBy:Nick()))
-    TBFY_Notify(BlindfoldedBy, 1, 4, string.format(RKS_GetLang("UnBlindfolder"), self:Nick()))
+		TBFY_Notify(self, 1, 4, string.format(RKS_GetLang("UnBlindfoldedBy"), BlindfoldedBy:Nick()))
+		TBFY_Notify(BlindfoldedBy, 1, 4, string.format(RKS_GetLang("UnBlindfolder"), self:Nick()))
 	end
 
 	hook.Call("RKS_Blindfold", GAMEMODE, self, BlindfoldedBy)
 end
+
 net.Receive("rks_blindfold", function(len, Player)
 	if !Player:RKS_CanBlind() then return end
 	if !IsValid(Player:GetActiveWeapon()) or Player:GetActiveWeapon():GetClass() != "weapon_r_restrains" then return false end
@@ -546,18 +561,21 @@ function PLAYER:RKSGag(GaggedBy)
 
 	if !self.Gagged then
 		self.Gagged = true
+		GaggedPlayers[self] = true -- OPTIMIZATION: Add to gagged table
 		self:SetupRKSGag()
-    TBFY_Notify(self, 1, 4, string.format(RKS_GetLang("GaggedBy"), GaggedBy:Nick()))
-    TBFY_Notify(GaggedBy, 1, 4, string.format(RKS_GetLang("Gagger"), self:Nick()))
+		TBFY_Notify(self, 1, 4, string.format(RKS_GetLang("GaggedBy"), GaggedBy:Nick()))
+		TBFY_Notify(GaggedBy, 1, 4, string.format(RKS_GetLang("Gagger"), self:Nick()))
 	elseif self.Gagged then
 		self.Gagged = false
+		GaggedPlayers[self] = nil -- OPTIMIZATION: Remove from gagged table
 		self:SetupRKSGag()
-    TBFY_Notify(self, 1, 4, string.format(RKS_GetLang("UnGaggedBy"), GaggedBy:Nick()))
-    TBFY_Notify(GaggedBy, 1, 4, string.format(RKS_GetLang("UnGagger"), self:Nick()))
+		TBFY_Notify(self, 1, 4, string.format(RKS_GetLang("UnGaggedBy"), GaggedBy:Nick()))
+		TBFY_Notify(GaggedBy, 1, 4, string.format(RKS_GetLang("UnGagger"), self:Nick()))
 	end
 
 	hook.Call("RKS_Gag", GAMEMODE, self, GaggedBy)
 end
+
 net.Receive("rks_gag", function(len, Player)
 	if !Player:RKS_CanGag() then return end
 	if !IsValid(Player:GetActiveWeapon()) or Player:GetActiveWeapon():GetClass() != "weapon_r_restrains" then return false end
@@ -710,10 +728,9 @@ hook.Add("onDarkRPWeaponDropped", "RKS_NoDrop", function(Player, Wep, EqpWep)
 	end
 end)
 
-local RKS_DCPlayers = RKS_DCPlayers or {}
 hook.Add("PlayerInitialSpawn", "RKS_InitSpawn", function(Player)
-    //Allow to intialize fully first
-    timer.Simple(8, function()
+	//Allow to intialize fully first
+	timer.Simple(8, function()
 		if IsValid(Player) then
 			for k,v in pairs(ents.FindByClass("rrestrainsent")) do
 				net.Start("rks_sendrestrains")
@@ -751,13 +768,13 @@ hook.Add("PlayerInitialSpawn", "RKS_InitSpawn", function(Player)
 				end
 			end
 		end
-    end)
+	end)
 end)
 
+-- OPTIMIZATION: Voice hook with gagged table
 hook.Add("PlayerCanHearPlayersVoice", "RKS_BlockVoiceChatWhenGagged", function(Listener, Talker)
-	if Talker.Gagged then
-		return false
-	end
+	-- Quick table lookup instead of property access
+	return GaggedPlayers[Talker] and false or nil
 end)
 
 hook.Add("PlayerSay", "RKS_BlockChatWhenGagged", function( Player, text, public )
@@ -767,34 +784,35 @@ hook.Add("PlayerSay", "RKS_BlockChatWhenGagged", function( Player, text, public 
 end)
 
 hook.Add("PlayerDeath", "RKS_ResetOnDeath", function( Player, Inflictor, Attacker )
-    if Player.RKRestrained or Player.Gagged or Player.Blindfolded then
-        Player:CleanUpRKS(false, true)
-    end
+	if Player.RKRestrained or Player.Gagged or Player.Blindfolded then
+		Player:CleanUpRKS(false, true)
+	end
+	-- OPTIMIZATION: Clean gagged table
+	GaggedPlayers[Player] = nil
 end)
 
 function PLAYER:CanRKSDrag(CPlayer)
-    if self.RKRestrained or !CPlayer.RKRestrained or (CPlayer.RKSDraggedBy or self.RKSDragging) and (self.RKSDragging != CPlayer or CPlayer.RKSDraggedBy != self) then return end
+	if self.RKRestrained or !CPlayer.RKRestrained or (CPlayer.RKSDraggedBy or self.RKSDragging) and (self.RKSDragging != CPlayer or CPlayer.RKSDraggedBy != self) then return end
 	return true
 end
 
-local RKSPGettingDragged = {}
 function PLAYER:RKSDragPlayer(TPlayer)
-    if self == TPlayer.RKSDraggedBy then
-        TPlayer:RKSCancelDrag()
-    elseif !self.RKSDragging then
+	if self == TPlayer.RKSDraggedBy then
+		TPlayer:RKSCancelDrag()
+	elseif !self.RKSDragging then
 		TPlayer.RKSDraggedBy = self
-        TPlayer:Freeze(true)
-        self.RKSDragging = TPlayer
-        if !table.HasValue(RKSPGettingDragged, TPlayer) then
-            table.insert(RKSPGettingDragged, TPlayer)
-        end
-    end
+		TPlayer:Freeze(true)
+		self.RKSDragging = TPlayer
+		if !table.HasValue(RKSPGettingDragged, TPlayer) then
+			table.insert(RKSPGettingDragged, TPlayer)
+		end
+	end
 end
 
 function PLAYER:RKSCancelDrag()
-  if table.HasValue(RKSPGettingDragged, self) then
-      table.RemoveByValue(RKSPGettingDragged, self)
-  end
+	if table.HasValue(RKSPGettingDragged, self) then
+		table.RemoveByValue(RKSPGettingDragged, self)
+	end
 	if IsValid(self) then
 		self:Freeze(false)
 		local DraggedByP = self.RKSDraggedBy
@@ -864,6 +882,9 @@ function PLAYER:RKS_AttatchPlayer(APlayer, Pos, AEnt)
 end
 
 hook.Add("PlayerDisconnected", "RKS_PDisconnect", function(Player)
+	-- OPTIMIZATION: Clean up all tables
+	GaggedPlayers[Player] = nil
+	
 	local Dragger = Player.RKSDraggedBy
 	if IsValid(Dragger) then
 		if table.HasValue(RKSPGettingDragged, Player) then
@@ -910,7 +931,6 @@ hook.Add("EntityRemoved", "RKS_EntityRemoved", function(Entity)
 	end
 end)
 
-
 hook.Add("KeyPress", "RKS_keypress", function(Player, Key)
 	if Key == IN_USE and !Player:InVehicle() then
 		local Trace = {}
@@ -938,7 +958,7 @@ hook.Add("KeyPress", "RKS_keypress", function(Player, Key)
 				TBFY_Notify(Player, 1, 4, RKS_GetLang("TooFarAway"))
 			end
 		end
-  end
+	end
 end)
 
 net.Receive("rks_drag", function(len, Player)
@@ -950,61 +970,69 @@ net.Receive("rks_drag", function(len, Player)
 	end
 end)
 
+-- OPTIMIZATION: Think hook with throttling for drag range
 hook.Add("Think", "RKS_HandlePlayerDraggingRange", function()
+	local ct = CurTime()
+	if NextDragThink > ct then return end
+	NextDragThink = ct + 0.1 -- Check every 0.1 seconds
+	
 	local DragRange = RKS_GetConf("DRAG_MaxRange")
-		for k,v in pairs(RKSPGettingDragged) do
-        if !IsValid(v) then table.RemoveByValue(RKSPGettingDragged, v) end
-        local DPlayer = v.RKSDraggedBy
-        if IsValid(DPlayer) then
-            local Distance = v:GetPos():Distance(DPlayer:GetPos());
-            if Distance > DragRange then
-                v:RKSCancelDrag()
-            end
-        else
-            v:RKSCancelDrag()
-        end
-    end
+	for k,v in pairs(RKSPGettingDragged) do
+		if !IsValid(v) then 
+			table.RemoveByValue(RKSPGettingDragged, v) 
+		else
+			local DPlayer = v.RKSDraggedBy
+			if IsValid(DPlayer) then
+				local Distance = v:GetPos():Distance(DPlayer:GetPos());
+				if Distance > DragRange then
+					v:RKSCancelDrag()
+				end
+			else
+				v:RKSCancelDrag()
+			end
+		end
+	end
 end)
 
 hook.Add("CanPlayerEnterVehicle", "RKS_RestrictEnterVehicle", function(Player, Vehicle)
-    if Player.RKRestrained and !Player.RKSDraggedBy then
-        TBFY_Notify(Player, 1, 4, RKS_GetLang("CantEnterVehicle"))
-        return false
+	if Player.RKRestrained and !Player.RKSDraggedBy then
+		TBFY_Notify(Player, 1, 4, RKS_GetLang("CantEnterVehicle"))
+		return false
 	elseif Player.RKSDragging then
 		return false
-    end
+	end
 end)
 
 hook.Add("PlayerEnteredVehicle", "RKS_RestrainsVFix", function(Player,Vehicle)
-    if Player.RKRestrained then
-        Player:CleanUpRKS(false, false,true)
-        Player.RKRestrained = true
-    end
+	if Player.RKRestrained then
+		Player:CleanUpRKS(false, false,true)
+		Player.RKRestrained = true
+	end
 end)
 
 hook.Add("PlayerLeaveVehicle", "RKS_LeaveVehicle", function(Player, Vehicle)
-    if Player.RKRestrained then
+	if Player.RKRestrained then
 		Player:SetupRestrains()
 		if RKS_GetConf("RESTRAINS_StarWarsRestrains") then
 			Player:SetupRKSBones("Restrained_StarWars")
 		else
 			Player:SetupRKSBones("Restrained")
 		end
-    end
+	end
 end)
 
 hook.Add("CanExitVehicle", "RKS_RestrictExitVehicle", function(Vehicle, Player)
-    if Player.RKRestrained then
-        TBFY_Notify(Player, 1, 4, RKS_GetLang("CantLeaveVehicle"))
-        return false
-    end
+	if Player.RKRestrained then
+		TBFY_Notify(Player, 1, 4, RKS_GetLang("CantLeaveVehicle"))
+		return false
+	end
 end)
 
 hook.Add("PlayerSpawnProp", "RKS_DisablePropSpawning", function(Player)
-    if Player.RKRestrained then
-        TBFY_Notify(Player, 1, 4, RKS_GetLang("CantSpawnProps"))
-        return false
-    end
+	if Player.RKRestrained then
+		TBFY_Notify(Player, 1, 4, RKS_GetLang("CantSpawnProps"))
+		return false
+	end
 end)
 
 hook.Add("PlayerCanPickupWeapon", "RKS_DisableWeaponPickup", function(Player, Wep)
@@ -1012,7 +1040,7 @@ hook.Add("PlayerCanPickupWeapon", "RKS_DisableWeaponPickup", function(Player, We
 end)
 
 hook.Add("playerCanChangeTeam", "RKS_RestrictTeamChange", function(Player, Team)
-    if Player.RKRestrained then return false, RKS_GetLang("CantChangeTeam") end
+	if Player.RKRestrained then return false, RKS_GetLang("CantChangeTeam") end
 end)
 
 hook.Add("CanPlayerSuicide", "RKS_DisableSuicide", function(Player)
@@ -1026,11 +1054,11 @@ hook.Add("NOVA_CanChangeSeat", "RKS_NovacarsDisableSeatChange", function(Player)
 end)
 
 hook.Add("VC_CanEnterPassengerSeat", "RKS_VCMOD_EnterSeat", function(Player, Seat, Vehicle)
-    local DraggedPlayer = Player.RKSDragging
-    if IsValid(DraggedPlayer) then
-        DraggedPlayer:EnterVehicle(Seat)
-        return false
-    end
+	local DraggedPlayer = Player.RKSDragging
+	if IsValid(DraggedPlayer) then
+		DraggedPlayer:EnterVehicle(Seat)
+		return false
+	end
 end)
 
 hook.Add("VC_CanSwitchSeat", "RKS_VCMOD_SwitchSeat", function(Player, SeatFrom, SeatTo)
@@ -1040,21 +1068,21 @@ hook.Add("VC_CanSwitchSeat", "RKS_VCMOD_SwitchSeat", function(Player, SeatFrom, 
 end)
 
 hook.Add("PlayerHasBeenTazed", "RKS_FixRestrainsTaze", function(Player)
-    if Player.RKRestrained then
-        Player:CleanUpRKS(false, false,true)
-        Player.RKRestrained = true
-    end
+	if Player.RKRestrained then
+		Player:CleanUpRKS(false, false,true)
+		Player.RKRestrained = true
+	end
 end)
 
 hook.Add("PlayerUnTazed", "RKS_FixRestrainsUnTaze", function(Player)
-    if Player.RKRestrained then
-        Player:SetupRestrains()
-				if RKS_GetConf("RESTRAINS_StarWarsRestrains") then
-					Player:SetupRKSBones("Restrained_StarWars")
-				else
-					Player:SetupRKSBones("Restrained")
-				end
-    end
+	if Player.RKRestrained then
+		Player:SetupRestrains()
+		if RKS_GetConf("RESTRAINS_StarWarsRestrains") then
+			Player:SetupRKSBones("Restrained_StarWars")
+		else
+			Player:SetupRKSBones("Restrained")
+		end
+	end
 end)
 
 hook.Add("onDarkRPWeaponDropped", "RKS_RemoveRestrainsSurrOnDeath", function(Player, Ent, Wep)
@@ -1062,5 +1090,3 @@ hook.Add("onDarkRPWeaponDropped", "RKS_RemoveRestrainsSurrOnDeath", function(Pla
 		Ent:Remove()
 	end
 end)
-
-
