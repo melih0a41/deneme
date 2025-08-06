@@ -1,9 +1,0 @@
-"VertexLitGeneric"
-{
-	"$basetexture" "models/freeman/blindfolds"
-
-// Tinting
-	
-	"$blendtintbybasealpha" "1" 
- 	"$blendtintcoloroverbase" "0"
-}
