@@ -69,7 +69,7 @@ aphone.Painting = {
 aphone.Format = "+33 %s%s%s%s%s%s%s%s"
 
 aphone.OthersHearRadio = true
-aphone.Language = "english"
+aphone.Language = "turkish"
 aphone.bank_onlytransfer = false
 aphone.never_realname = false // Hide RP Name, except in Friends
 aphone.disable_showingUnknownPlayers = false
