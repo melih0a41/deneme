@@ -15,6 +15,10 @@ util.AddNetworkString("FIB_RequestSync")   -- Sync isteği için
 util.AddNetworkString("FIB_FullSync")      -- Full sync için
 util.AddNetworkString("FIB_AgentListUpdate") -- Liste güncellemesi için
 util.AddNetworkString("FIB_KickedFromSystem")  -- Sistemden atılma için
+util.AddNetworkString("FIB_UpdateMissionStatus") -- Görev durumu güncelleme için
+util.AddNetworkString("FIB_QuickSync") -- Hızlı sync için
+util.AddNetworkString("FIB_AgentJoined") -- Ajan katıldı
+util.AddNetworkString("FIB_AgentLeft") -- Ajan ayrıldı
 
 print("[FIB SYSTEMS] Network string'ler tanimlandi!")
 
@@ -36,8 +40,8 @@ concommand.Add("fibgec", function(ply)
         ply:ChatPrint("[FIB] Gizli mod AKTIF - Diger ajanlar sizi gorebilir")
         
         -- Silahları ver (varsa)
-        if weapons.Get("weapon_fib_pistol") then
-            ply:Give("weapon_fib_pistol")
+        if weapons.Get("arccw_mw2_g18_perma") then
+            ply:Give("arccw_mw2_g18_perma")
         end
         if weapons.Get("dsr_lockpick") then
             ply:Give("dsr_lockpick")
@@ -89,6 +93,9 @@ concommand.Add("fibgec", function(ply)
     net.WriteBool(ply.FIBUndercover)
     net.Send(ply)
     
+    -- Hook'u tetikle (sync için)
+    hook.Run("FIB_UndercoverChanged", ply)
+    
     -- Tüm FIB ajanlarına senkronize et
     FIB_SyncAllAgents()
 end)
@@ -130,13 +137,14 @@ end)
 -- CLIENT SYNC İSTEĞİ RECEIVER
 -- ============================================
 net.Receive("FIB_RequestSync", function(len, ply)
-    if not ply.FIBAuthenticated then
-        print("[FIB SYNC] Yetkisiz sync istegi: " .. ply:Nick())
+    if not IsValid(ply) or not ply.FIBAuthenticated then
+        print("[FIB SYNC] Yetkisiz sync istegi!")
         return
     end
     
     print("[FIB SYNC] Sync istegi alindi: " .. ply:Nick())
     
+    -- sv_fib_sync_fix.lua dosyasındaki fonksiyonu kullan
     if FIB.SendSyncToPlayer then
         FIB.SendSyncToPlayer(ply)
     else
@@ -239,9 +247,6 @@ net.Receive("FIB_AddAgent", function(len, ply)
     ServerLog("[FIB] " .. ply:Nick() .. " tarafindan " .. target:Nick() .. " sisteme eklendi (Rank: " .. rank .. ")\n")
 end)
 
--- ============================================
--- AJAN SİLME NET RECEIVER
--- ============================================
 -- ============================================
 -- AJAN SİLME NET RECEIVER - GÜNCELLENMİŞ
 -- ============================================
@@ -494,13 +499,14 @@ concommand.Add("fib_mission_create", function(ply, cmd, args)
     local missionName = args[1] or "Isimsiz Gorev"
     local target = args[2] or "Belirtilmemis"
     local priority = args[3] or "NORMAL"
+    local status = args[4] or "Planlama"  -- Yeni parametre
     
     local mission = {
         id = #FIB.Missions + 1,
         name = missionName,
         target = target,
         priority = priority,
-        status = "Aktif",
+        status = status,  -- Artık parametreden alıyoruz
         creator = ply:Nick(),
         assigned = {},
         created = os.time()
@@ -527,6 +533,81 @@ concommand.Add("fib_mission_create", function(ply, cmd, args)
     end
     
     ServerLog("[FIB-MISSION] " .. ply:Nick() .. " yeni gorev olusturdu: " .. missionName .. "\n")
+end)
+
+-- ============================================
+-- GÖREV DURUMU GÜNCELLEME NET RECEIVER (YENİ)
+-- ============================================
+net.Receive("FIB_UpdateMissionStatus", function(len, ply)
+    -- Yetki kontrolü
+    if not ply.FIBAuthenticated then
+        ply:ChatPrint("[FIB] Sisteme giris yapmalisiniz!")
+        return
+    end
+    
+    if ply.FIBRank != "Sef" then
+        ply:ChatPrint("[FIB] Bu islemi sadece sefler yapabilir!")
+        print("[FIB] Yetkisiz durum guncelleme denemesi: " .. ply:Nick())
+        return
+    end
+    
+    local missionName = net.ReadString()
+    local newStatus = net.ReadString()
+    
+    print("[FIB] Gorev durumu guncelleniyor:")
+    print("  - Gorev: " .. missionName)
+    print("  - Yeni Durum: " .. newStatus)
+    print("  - Guncelleyen: " .. ply:Nick())
+    
+    -- Görevi bul ve güncelle
+    local found = false
+    for i, mission in ipairs(FIB.Missions) do
+        if mission.name == missionName then
+            mission.status = newStatus
+            mission.last_updated = os.time()
+            mission.updated_by = ply:Nick()
+            found = true
+            
+            -- Eğer tamamlandı ise
+            if newStatus == "Tamamlandi" then
+                mission.completed_date = os.time()
+                mission.completed_by = ply:Nick()
+            end
+            
+            break
+        end
+    end
+    
+    if found then
+        -- Veriyi kaydet (eğer persistence sistemi varsa)
+        if FIB.SaveMissions then
+            FIB.SaveMissions()
+            print("[FIB] Gorev durumu veritabanina kaydedildi")
+        end
+        
+        -- Tüm FIB ajanlarına bildir
+        for _, v in ipairs(player.GetAll()) do
+            if v.FIBAuthenticated then
+                v:ChatPrint("[FIB] " .. missionName .. " gorevi durumu guncellendi: " .. newStatus)
+                
+                -- Client'lara güncelleme gönder
+                net.Start("FIB_MissionUpdate")
+                net.WriteString("status_update")
+                net.WriteTable({
+                    name = missionName,
+                    status = newStatus,
+                    updated_by = ply:Nick()
+                })
+                net.Send(v)
+            end
+        end
+        
+        -- Log
+        ServerLog("[FIB] " .. ply:Nick() .. " gorev durumunu guncelledi: " .. missionName .. " -> " .. newStatus .. "\n")
+    else
+        ply:ChatPrint("[FIB] Gorev bulunamadi: " .. missionName)
+        print("[FIB] Gorev bulunamadi: " .. missionName)
+    end
 end)
 
 concommand.Add("fib_mission_delete", function(ply, cmd, args)
@@ -605,8 +686,8 @@ concommand.Add("fib_mission_list", function(ply)
     ply:ChatPrint("[FIB] === AKTIF GOREVLER ===")
     
     for id, mission in ipairs(FIB.Missions) do
-        if mission.status == "Aktif" then
-            ply:ChatPrint("[" .. id .. "] " .. mission.name .. " - Hedef: " .. mission.target .. " - Oncelik: " .. mission.priority)
+        if mission.status ~= "Tamamlandi" and mission.status ~= "Iptal" then
+            ply:ChatPrint("[" .. id .. "] " .. mission.name .. " - Hedef: " .. mission.target .. " - Oncelik: " .. mission.priority .. " - Durum: " .. mission.status)
         end
     end
     
@@ -623,30 +704,35 @@ end)
 -- SENKRONİZASYON
 -- ============================================
 function FIB_SyncAllAgents()
-    local agentData = {}
-    
-    for _, ply in ipairs(player.GetAll()) do
-        if ply.FIBAuthenticated then
-            table.insert(agentData, {
-                entity = ply,
-                steamid = ply:SteamID(),
-                nick = ply:Nick(),
-                rank = ply.FIBRank,
-                username = ply.FIBUsername,
-                undercover = ply.FIBUndercover or false,
-                pos = ply:GetPos()
-            })
+    -- sv_fib_sync_fix.lua dosyasındaki fonksiyonu kullan
+    if FIB.BroadcastFullSync then
+        FIB.BroadcastFullSync()
+    else
+        -- Fallback
+        local agentData = {}
+        
+        for _, ply in ipairs(player.GetAll()) do
+            if IsValid(ply) and ply.FIBAuthenticated then
+                table.insert(agentData, {
+                    steamid = ply:SteamID(),
+                    nick = ply:Nick(),
+                    rank = ply.FIBRank or "Ajan",
+                    username = ply.FIBUsername or "Unknown",
+                    undercover = ply.FIBUndercover or false,
+                    pos = ply:GetPos()
+                })
+            end
         end
-    end
-    
-    -- Tüm FIB ajanlarına gönder
-    for _, ply in ipairs(player.GetAll()) do
-        if ply.FIBAuthenticated then
-            net.Start("FIB_FullSync")
-            net.WriteTable(agentData)
-            net.WriteTable(FIB.Config.Users or {})
-            net.WriteTable(FIB.Missions or {})
-            net.Send(ply)
+        
+        -- Tüm FIB ajanlarına gönder
+        for _, ply in ipairs(player.GetAll()) do
+            if IsValid(ply) and ply.FIBAuthenticated then
+                net.Start("FIB_FullSync")
+                net.WriteTable(agentData)
+                net.WriteTable(FIB.Config.Users or {})
+                net.WriteTable(FIB.Missions or {})
+                net.Send(ply)
+            end
         end
     end
 end
@@ -683,11 +769,14 @@ end)
 -- OYUNCU SPAWN HOOK'U
 -- ============================================
 hook.Add("PlayerSpawn", "FIB_PlayerSpawn", function(ply)
-    if ply.FIBAuthenticated then
+    if IsValid(ply) and ply.FIBAuthenticated then
         -- Gizli moddaysa silahları ver
         if ply.FIBUndercover then
             timer.Simple(1, function()
                 if IsValid(ply) then
+                    if weapons.Get("arccw_mw2_g18_perma") then
+                        ply:Give("arccw_mw2_g18_perma")
+                    end
                     if weapons.Get("dsr_lockpick") then
                         ply:Give("dsr_lockpick")
                     end
@@ -703,7 +792,11 @@ hook.Add("PlayerSpawn", "FIB_PlayerSpawn", function(ply)
         
         -- Senkronize et
         timer.Simple(2, function()
-            FIB_SyncAllAgents()
+            if FIB.BroadcastFullSync then
+                FIB.BroadcastFullSync()
+            else
+                FIB_SyncAllAgents()
+            end
         end)
     end
 end)
@@ -718,11 +811,12 @@ concommand.Add("fib_systems_debug", function(ply)
     print("Network string'ler: OK")
     print("Gorev sayisi: " .. #FIB.Missions)
     print("Sync timer: " .. (timer.Exists("FIB_PeriodicSync") and "AKTIF" or "KAPALI"))
+    print("Sync timer (new): " .. (timer.Exists("FIB_PeriodicFullSync") and "AKTIF" or "KAPALI"))
     
     local onlineAgents = 0
     local undercoverAgents = 0
     for _, v in ipairs(player.GetAll()) do
-        if v.FIBAuthenticated then
+        if IsValid(v) and v.FIBAuthenticated then
             onlineAgents = onlineAgents + 1
             if v.FIBUndercover then
                 undercoverAgents = undercoverAgents + 1
@@ -740,5 +834,5 @@ end)
 
 print("[FIB SYSTEMS] ===================================")
 print("[FIB SYSTEMS] Sistemler basariyla yuklendi!")
-print("[FIB SYSTEMS] Versiyon: 2.1 (Full Sync Destekli)")
+print("[FIB SYSTEMS] Versiyon: 2.5 (Stable Sync)")
 print("[FIB SYSTEMS] ===================================")

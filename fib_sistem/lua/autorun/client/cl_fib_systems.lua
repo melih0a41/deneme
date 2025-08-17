@@ -8,6 +8,23 @@ surface.CreateFont("FIB_HUD", {
     antialias = true
 })
 
+-- Circle çizme fonksiyonu
+local function DrawCircle(x, y, radius, segments)
+    local cir = {}
+    
+    table.insert(cir, {x = x, y = y})
+    
+    for i = 0, segments do
+        local a = math.rad((i / segments) * -360)
+        table.insert(cir, {
+            x = x + math.sin(a) * radius,
+            y = y + math.cos(a) * radius
+        })
+    end
+    
+    surface.DrawPoly(cir)
+end
+
 -- Network receivers
 net.Receive("FIB_UpdateUndercover", function()
     local isUndercover = net.ReadBool()
@@ -32,8 +49,6 @@ net.Receive("FIB_ChatMessage", function()
     local message = net.ReadString()
     local rank = net.ReadString()
     local isUndercover = net.ReadBool()
-    
-    -- Özel chat mesajını göster (zaten server'da chat'e yazılıyor, burada ekstra UI ekleyebiliriz)
     
     -- Bildirim sesi
     surface.PlaySound("buttons/button24.wav")
@@ -63,15 +78,6 @@ net.Receive("FIB_DepartmentUpdate", function()
     end
 end)
 
--- Senkronizasyon
-local FIB_ActiveAgents = {}
-local FIB_ActiveMissions = {}
-
-net.Receive("FIB_SyncData", function()
-    FIB_ActiveAgents = net.ReadTable()
-    FIB_ActiveMissions = net.ReadTable()
-end)
-
 -- HUD elementi - Gizli moddaki ajanları göster
 hook.Add("HUDPaint", "FIB_HUD", function()
     if not LocalPlayer().FIBAuthenticated then return end
@@ -85,30 +91,41 @@ hook.Add("HUDPaint", "FIB_HUD", function()
         -- Yanıp sönen nokta
         local alpha = math.sin(CurTime() * 5) * 100 + 155
         surface.SetDrawColor(255, 200, 0, alpha)
-        surface.DrawCircle(25, 25, 5, Color(255, 200, 0, alpha))
+        DrawCircle(25, 25, 5, 16)
     end
     
     -- Diğer gizli ajanların üzerinde işaret
-    for _, agent in ipairs(FIB_ActiveAgents) do
-        if IsValid(agent.entity) and agent.entity != LocalPlayer() and agent.undercover then
-            local pos = agent.entity:GetPos() + Vector(0, 0, 85)
-            local screenPos = pos:ToScreen()
+    if FIB_ActiveAgents and #FIB_ActiveAgents > 0 then
+        for _, agent in ipairs(FIB_ActiveAgents) do
+            -- SteamID'den entity'yi bul
+            local ply = nil
+            for _, p in ipairs(player.GetAll()) do
+                if IsValid(p) and p:SteamID() == agent.steamid then
+                    ply = p
+                    break
+                end
+            end
             
-            if screenPos.visible then
-                -- FIB ikonu
-                draw.RoundedBox(4, screenPos.x - 20, screenPos.y - 10, 40, 20, Color(0, 0, 0, 150))
-                draw.SimpleText("FIB", "FIB_HUD", screenPos.x, screenPos.y, Color(0, 120, 255), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+            if IsValid(ply) and ply != LocalPlayer() and agent.undercover then
+                local pos = ply:GetPos() + Vector(0, 0, 85)
+                local screenPos = pos:ToScreen()
                 
-                -- İsim ve mesafe
-                local distance = math.Round(LocalPlayer():GetPos():Distance(agent.entity:GetPos()))
-                draw.SimpleText(agent.nick, "FIB_HUD", screenPos.x, screenPos.y + 15, Color(255, 255, 255, 200), TEXT_ALIGN_CENTER)
-                draw.SimpleText(distance .. "m", "FIB_HUD", screenPos.x, screenPos.y + 30, Color(200, 200, 200, 150), TEXT_ALIGN_CENTER)
+                if screenPos.visible then
+                    -- FIB ikonu
+                    draw.RoundedBox(4, screenPos.x - 20, screenPos.y - 10, 40, 20, Color(0, 0, 0, 150))
+                    draw.SimpleText("FIB", "FIB_HUD", screenPos.x, screenPos.y, Color(0, 120, 255), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+                    
+                    -- İsim ve mesafe
+                    local distance = math.Round(LocalPlayer():GetPos():Distance(ply:GetPos()))
+                    draw.SimpleText(ply:Nick(), "FIB_HUD", screenPos.x, screenPos.y + 15, Color(255, 255, 255, 200), TEXT_ALIGN_CENTER)
+                    draw.SimpleText(distance .. "m", "FIB_HUD", screenPos.x, screenPos.y + 30, Color(200, 200, 200, 150), TEXT_ALIGN_CENTER)
+                end
             end
         end
     end
     
     -- Sağ üstte aktif ajan sayısı
-    if #FIB_ActiveAgents > 0 then
+    if FIB_ActiveAgents and #FIB_ActiveAgents > 0 then
         local x = ScrW() - 150
         local y = 10
         
@@ -130,53 +147,98 @@ hook.Add("HUDPaint", "FIB_HUD", function()
     end
 end)
 
--- 3D2D HUD - Gizli ajanlar için halka
-hook.Add("PostDrawTranslucentRenderables", "FIB_3D2D", function()
+-- 3D2D HUD - GİZLİ AJANLAR İÇİN HALKA (DÜZELTİLDİ)
+hook.Add("PostDrawTranslucentRenderables", "FIB_3D2D", function(bDrawingDepth, bDrawingSkybox)
+    -- Skybox veya depth çiziminde çalışmasın
+    if bDrawingSkybox or bDrawingDepth then return end
+    
     if not LocalPlayer().FIBAuthenticated then return end
+    if not FIB_ActiveAgents or #FIB_ActiveAgents == 0 then return end
     
     for _, agent in ipairs(FIB_ActiveAgents) do
-        if IsValid(agent.entity) and agent.entity != LocalPlayer() and agent.undercover then
-            local pos = agent.entity:GetPos()
-            local ang = Angle(0, 0, 0)
+        -- SteamID'den entity'yi bul
+        local ply = nil
+        for _, p in ipairs(player.GetAll()) do
+            if IsValid(p) and p:SteamID() == agent.steamid then
+                ply = p
+                break
+            end
+        end
+        
+        if IsValid(ply) and ply != LocalPlayer() and agent.undercover then
+            local pos = ply:GetPos()
+            local eyePos = LocalPlayer():EyePos()
+            local distance = pos:Distance(eyePos)
             
-            cam.Start3D2D(pos, ang, 0.1)
-                -- Zemin halkası
-                surface.SetDrawColor(0, 120, 255, 100)
-                draw.NoTexture()
+            -- Sadece yakın mesafede göster (500 birim)
+            if distance < 500 then
+                local ang = Angle(0, CurTime() * 50, 0) -- Dönen açı
                 
-                -- Dönen halka efekti
-                local segments = 32
-                local radius = 300
-                local rotation = CurTime() * 50
+                cam.Start3D2D(pos + Vector(0, 0, 1), ang, 0.15)
+                    -- Ana halka
+                    surface.SetDrawColor(0, 120, 255, 150)
+                    
+                    -- Dönen dış halka
+                    for i = 0, 32 do
+                        local angle1 = (i / 32) * math.pi * 2
+                        local angle2 = ((i + 1) / 32) * math.pi * 2
+                        
+                        local x1 = math.cos(angle1) * 250
+                        local y1 = math.sin(angle1) * 250
+                        local x2 = math.cos(angle2) * 250
+                        local y2 = math.sin(angle2) * 250
+                        
+                        surface.DrawLine(x1, y1, x2, y2)
+                    end
+                    
+                    -- İç halka (ters yönde dönen)
+                    surface.SetDrawColor(0, 200, 255, 100)
+                    for i = 0, 24 do
+                        local angle1 = (i / 24) * math.pi * 2
+                        local angle2 = ((i + 1) / 24) * math.pi * 2
+                        
+                        local x1 = math.cos(angle1) * 180
+                        local y1 = math.sin(angle1) * 180
+                        local x2 = math.cos(angle2) * 180
+                        local y2 = math.sin(angle2) * 180
+                        
+                        surface.DrawLine(x1, y1, x2, y2)
+                    end
+                    
+                    -- Merkez işaret
+                    surface.SetDrawColor(255, 200, 0, 200)
+                    DrawCircle(0, 0, 30, 16)
+                    
+                    -- FIB yazısı
+                    draw.SimpleText("FIB", "FIB_HUD", 0, 0, Color(255, 255, 255, 255), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+                    
+                    -- İsim
+                    draw.SimpleText(ply:Nick(), "FIB_HUD", 0, 50, Color(255, 255, 255, 200), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+                    
+                    -- Rütbe
+                    draw.SimpleText(agent.rank, "FIB_HUD", 0, 70, Color(255, 200, 0, 200), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+                cam.End3D2D()
                 
-                for i = 1, segments do
-                    local angle1 = (i - 1) / segments * math.pi * 2 + math.rad(rotation)
-                    local angle2 = i / segments * math.pi * 2 + math.rad(rotation)
+                -- Zemine iz de ekleyelim
+                cam.Start3D2D(pos, Angle(0, 0, 0), 0.1)
+                    -- Pulse efekti
+                    local pulse = math.sin(CurTime() * 3) * 20 + 80
+                    surface.SetDrawColor(0, 120, 255, pulse)
                     
-                    local x1 = math.cos(angle1) * radius
-                    local y1 = math.sin(angle1) * radius
-                    local x2 = math.cos(angle2) * radius
-                    local y2 = math.sin(angle2) * radius
-                    
-                    surface.DrawLine(x1, y1, x2, y2)
-                end
-                
-                -- İç halka
-                local innerRadius = 250
-                surface.SetDrawColor(0, 200, 255, 50)
-                
-                for i = 1, segments do
-                    local angle1 = (i - 1) / segments * math.pi * 2 - math.rad(rotation)
-                    local angle2 = i / segments * math.pi * 2 - math.rad(rotation)
-                    
-                    local x1 = math.cos(angle1) * innerRadius
-                    local y1 = math.sin(angle1) * innerRadius
-                    local x2 = math.cos(angle2) * innerRadius
-                    local y2 = math.sin(angle2) * innerRadius
-                    
-                    surface.DrawLine(x1, y1, x2, y2)
-                end
-            cam.End3D2D()
+                    -- Zemin halkası
+                    for i = 0, 32 do
+                        local angle = (i / 32) * math.pi * 2
+                        local nextAngle = ((i + 1) / 32) * math.pi * 2
+                        
+                        local x1 = math.cos(angle) * 300
+                        local y1 = math.sin(angle) * 300
+                        local x2 = math.cos(nextAngle) * 300
+                        local y2 = math.sin(nextAngle) * 300
+                        
+                        surface.DrawLine(x1, y1, x2, y2)
+                    end
+                cam.End3D2D()
+            end
         end
     end
 end)
@@ -246,3 +308,25 @@ end
 
 -- Export fonksiyon
 FIB.Notify = FIBNotification
+
+-- Debug 3D2D görünürlük
+concommand.Add("fib_debug_3d2d", function()
+    print("[FIB 3D2D] Debug:")
+    print("  - Authenticated: " .. tostring(LocalPlayer().FIBAuthenticated))
+    print("  - Active Agents: " .. tostring(FIB_ActiveAgents and #FIB_ActiveAgents or 0))
+    
+    if FIB_ActiveAgents then
+        for i, agent in ipairs(FIB_ActiveAgents) do
+            local ply = nil
+            for _, p in ipairs(player.GetAll()) do
+                if IsValid(p) and p:SteamID() == agent.steamid then
+                    ply = p
+                    break
+                end
+            end
+            
+            local validStr = IsValid(ply) and "VALID" or "INVALID"
+            print("  [" .. i .. "] " .. agent.nick .. " - Undercover: " .. tostring(agent.undercover) .. " - Entity: " .. validStr)
+        end
+    end
+end)

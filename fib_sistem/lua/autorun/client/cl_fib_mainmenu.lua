@@ -796,7 +796,7 @@ function FIB.CreateMainMenu()
         end
     end)
     
-    -- GÖREV PANELİ
+    -- GÖREV PANELİ - DURUM DÜZENLEME ÖZELLİĞİ EKLENDİ
     local missionPanel = vgui.Create("DPanel", contentArea)
     missionPanel:Dock(FILL)
     missionPanel:DockMargin(10, 10, 10, 10)
@@ -817,6 +817,9 @@ function FIB.CreateMainMenu()
     missionList:SetPos(20, 60)
     missionList:SetSize(contentArea:GetWide() - 60, 300)
     missionList:SetMultiSelect(false)
+    
+    -- Global referans
+    FIB.MissionListView = missionList
     
     -- Sütunları ekle
     local col1 = missionList:AddColumn("Gorev Adi")
@@ -863,6 +866,15 @@ function FIB.CreateMainMenu()
     missionList.AddLine = function(self, ...)
         local line = oldMissionAddLine(self, ...)
         
+        -- Görev verilerini line'a ekle
+        line.missionData = {
+            name = line:GetColumnText(1),
+            target = line:GetColumnText(2),
+            priority = line:GetColumnText(3),
+            status = line:GetColumnText(4),
+            assigned = line:GetColumnText(5)
+        }
+        
         -- Satır renkleri
         line.Paint = function(pnl, w, h)
             if pnl:IsHovered() then
@@ -894,6 +906,22 @@ function FIB.CreateMainMenu()
             end
         end
         
+        -- Durum renklendir
+        if line.Columns[4] then
+            local status = line.Columns[4]:GetText()
+            if status == "Tamamlandi" then
+                line.Columns[4]:SetTextColor(Color(100, 255, 100))
+            elseif status == "Devam Ediyor" then
+                line.Columns[4]:SetTextColor(Color(255, 200, 0))
+            elseif status == "Beklemede" then
+                line.Columns[4]:SetTextColor(Color(200, 200, 200))
+            elseif status == "Iptal" then
+                line.Columns[4]:SetTextColor(Color(255, 100, 100))
+            else
+                line.Columns[4]:SetTextColor(Color(0, 200, 255))
+            end
+        end
+        
         return line
     end
     
@@ -909,7 +937,7 @@ function FIB.CreateMainMenu()
     if LocalPlayer().FIBRank == "Sef" or LocalPlayer().FIBRank == "Kidemli Ajan" then
         local createMissionBtn = vgui.Create("DButton", missionPanel)
         createMissionBtn:SetPos(20, 380)
-        createMissionBtn:SetSize(200, 40)
+        createMissionBtn:SetSize(180, 40)
         createMissionBtn:SetText("YENI GOREV OLUSTUR")
         createMissionBtn:SetTextColor(Color(255, 255, 255))
         createMissionBtn:SetFont("FIB_Menu_Text")
@@ -920,7 +948,7 @@ function FIB.CreateMainMenu()
         createMissionBtn.DoClick = function()
             -- Görev oluşturma penceresi
             local missionDialog = vgui.Create("DFrame")
-            missionDialog:SetSize(400, 350)
+            missionDialog:SetSize(400, 420)
             missionDialog:Center()
             missionDialog:SetTitle("Yeni Gorev Olustur")
             missionDialog:MakePopup()
@@ -982,16 +1010,34 @@ function FIB.CreateMainMenu()
             priorityCombo:AddChoice("KRITIK", "KRITIK")
             priorityCombo:SetValue("ORTA")
             
+            -- Durum
+            local statusLabel = vgui.Create("DLabel", missionDialog)
+            statusLabel:SetPos(20, 235)
+            statusLabel:SetSize(360, 20)
+            statusLabel:SetText("Baslangic Durumu:")
+            statusLabel:SetTextColor(Color(255, 255, 255))
+            statusLabel:SetFont("FIB_Menu_Text")
+            
+            local statusCombo = vgui.Create("DComboBox", missionDialog)
+            statusCombo:SetPos(20, 260)
+            statusCombo:SetSize(360, 30)
+            statusCombo:SetFont("FIB_Menu_Text")
+            statusCombo:SetTextColor(Color(255, 255, 255))
+            statusCombo:AddChoice("Planlama", "Planlama")
+            statusCombo:AddChoice("Beklemede", "Beklemede")
+            statusCombo:AddChoice("Devam Ediyor", "Devam Ediyor")
+            statusCombo:SetValue("Planlama")
+            
             -- Ajan ata
             local assignLabel = vgui.Create("DLabel", missionDialog)
-            assignLabel:SetPos(20, 235)
+            assignLabel:SetPos(20, 300)
             assignLabel:SetSize(360, 20)
             assignLabel:SetText("Ajana Ata (Opsiyonel):")
             assignLabel:SetTextColor(Color(255, 255, 255))
             assignLabel:SetFont("FIB_Menu_Text")
             
             local assignCombo = vgui.Create("DComboBox", missionDialog)
-            assignCombo:SetPos(20, 260)
+            assignCombo:SetPos(20, 325)
             assignCombo:SetSize(360, 30)
             assignCombo:SetFont("FIB_Menu_Text")
             assignCombo:SetTextColor(Color(255, 255, 255))
@@ -1007,7 +1053,7 @@ function FIB.CreateMainMenu()
             
             -- Oluştur butonu
             local createBtn = vgui.Create("DButton", missionDialog)
-            createBtn:SetPos(20, 305)
+            createBtn:SetPos(20, 370)
             createBtn:SetSize(360, 35)
             createBtn:SetText("GOREVI OLUSTUR")
             createBtn:SetTextColor(Color(255, 255, 255))
@@ -1020,14 +1066,15 @@ function FIB.CreateMainMenu()
                 local name = nameEntry:GetValue()
                 local target = targetEntry:GetValue()
                 local priority = priorityCombo:GetValue()
+                local status = statusCombo:GetValue()
                 local assigned = assignCombo:GetValue()
                 
                 if name ~= "" then
                     -- Server'a gönder
-                    RunConsoleCommand("fib_mission_create", name, target or "Bilinmiyor", priority)
+                    RunConsoleCommand("fib_mission_create", name, target or "Bilinmiyor", priority, status)
                     
                     -- Listeye ekle
-                    missionList:AddLine(name, target ~= "" and target or "Bilinmiyor", priority, "Yeni", assigned ~= "Atanmadi" and assigned or "Atanmadi")
+                    missionList:AddLine(name, target ~= "" and target or "Bilinmiyor", priority, status, assigned ~= "Atanmadi" and assigned or "Atanmadi")
                     
                     -- Dialogu kapat
                     missionDialog:Close()
@@ -1042,8 +1089,8 @@ function FIB.CreateMainMenu()
         
         -- Görevi sil butonu
         local deleteMissionBtn = vgui.Create("DButton", missionPanel)
-        deleteMissionBtn:SetPos(230, 380)
-        deleteMissionBtn:SetSize(200, 40)
+        deleteMissionBtn:SetPos(210, 380)
+        deleteMissionBtn:SetSize(180, 40)
         deleteMissionBtn:SetText("SECILI GOREVI SIL")
         deleteMissionBtn:SetTextColor(Color(255, 255, 255))
         deleteMissionBtn:SetFont("FIB_Menu_Text")
@@ -1060,17 +1107,131 @@ function FIB.CreateMainMenu()
                 chat.AddText(Color(0, 120, 255), "[FIB] ", Color(255, 65, 65), "Lutfen bir gorev secin!")
             end
         end
+        
+        -- YENİ: Görev durumu düzenle butonu (SADECE ŞEF İÇİN)
+        if LocalPlayer().FIBRank == "Sef" then
+            local editStatusBtn = vgui.Create("DButton", missionPanel)
+            editStatusBtn:SetPos(400, 380)
+            editStatusBtn:SetSize(180, 40)
+            editStatusBtn:SetText("DURUMU DUZENLE")
+            editStatusBtn:SetTextColor(Color(255, 255, 255))
+            editStatusBtn:SetFont("FIB_Menu_Text")
+            editStatusBtn.Paint = function(self, w, h)
+                local col = self:IsHovered() and FIB.Config.Colors.hover or FIB.Config.Colors.warning
+                draw.RoundedBox(6, 0, 0, w, h, col)
+            end
+            editStatusBtn.DoClick = function()
+                local selected = missionList:GetSelectedLine()
+                if not selected then
+                    chat.AddText(Color(0, 120, 255), "[FIB] ", Color(255, 65, 65), "Lutfen bir gorev secin!")
+                    return
+                end
+                
+                local selectedLine = missionList:GetLine(selected)
+                if not selectedLine then return end
+                
+                -- Durum düzenleme penceresi
+                local statusDialog = vgui.Create("DFrame")
+                statusDialog:SetSize(350, 250)
+                statusDialog:Center()
+                statusDialog:SetTitle("Gorev Durumu Duzenle")
+                statusDialog:MakePopup()
+                statusDialog.Paint = function(self, w, h)
+                    draw.RoundedBox(8, 0, 0, w, h, Color(20, 30, 45, 250))
+                    draw.RoundedBoxEx(8, 0, 0, w, 25, Color(0, 120, 255, 200), true, true, false, false)
+                end
+                
+                -- Görev adı göster
+                local missionNameLabel = vgui.Create("DLabel", statusDialog)
+                missionNameLabel:SetPos(20, 40)
+                missionNameLabel:SetSize(310, 40)
+                missionNameLabel:SetText("Gorev: " .. selectedLine:GetColumnText(1))
+                missionNameLabel:SetTextColor(Color(255, 255, 255))
+                missionNameLabel:SetFont("FIB_Menu_Text")
+                missionNameLabel:SetWrap(true)
+                
+                -- Mevcut durum
+                local currentStatusLabel = vgui.Create("DLabel", statusDialog)
+                currentStatusLabel:SetPos(20, 85)
+                currentStatusLabel:SetSize(310, 20)
+                currentStatusLabel:SetText("Mevcut Durum: " .. selectedLine:GetColumnText(4))
+                currentStatusLabel:SetTextColor(Color(200, 200, 200))
+                currentStatusLabel:SetFont("FIB_Menu_Small")
+                
+                -- Yeni durum seçimi
+                local newStatusLabel = vgui.Create("DLabel", statusDialog)
+                newStatusLabel:SetPos(20, 110)
+                newStatusLabel:SetSize(310, 20)
+                newStatusLabel:SetText("Yeni Durum:")
+                newStatusLabel:SetTextColor(Color(255, 255, 255))
+                newStatusLabel:SetFont("FIB_Menu_Text")
+                
+                local statusCombo = vgui.Create("DComboBox", statusDialog)
+                statusCombo:SetPos(20, 135)
+                statusCombo:SetSize(310, 30)
+                statusCombo:SetFont("FIB_Menu_Text")
+                statusCombo:SetTextColor(Color(255, 255, 255))
+                statusCombo:AddChoice("Planlama", "Planlama")
+                statusCombo:AddChoice("Beklemede", "Beklemede")
+                statusCombo:AddChoice("Devam Ediyor", "Devam Ediyor")
+                statusCombo:AddChoice("Tamamlandi", "Tamamlandi")
+                statusCombo:AddChoice("Iptal", "Iptal")
+                statusCombo:SetValue(selectedLine:GetColumnText(4))
+                
+                -- Güncelle butonu
+                local updateBtn = vgui.Create("DButton", statusDialog)
+                updateBtn:SetPos(20, 180)
+                updateBtn:SetSize(310, 35)
+                updateBtn:SetText("DURUMU GUNCELLE")
+                updateBtn:SetTextColor(Color(255, 255, 255))
+                updateBtn:SetFont("FIB_Menu_Text")
+                updateBtn.Paint = function(self, w, h)
+                    local col = self:IsHovered() and FIB.Config.Colors.hover or FIB.Config.Colors.accent
+                    draw.RoundedBox(6, 0, 0, w, h, col)
+                end
+                updateBtn.DoClick = function()
+                    local newStatus = statusCombo:GetValue()
+                    
+                    -- Server'a gönder
+                    net.Start("FIB_UpdateMissionStatus")
+                    net.WriteString(selectedLine:GetColumnText(1)) -- Görev adı
+                    net.WriteString(newStatus)
+                    net.SendToServer()
+                    
+                    -- Client tarafında güncelle
+                    selectedLine:SetColumnText(4, newStatus)
+                    
+                    -- Renkleri güncelle
+                    if selectedLine.Columns[4] then
+                        if newStatus == "Tamamlandi" then
+                            selectedLine.Columns[4]:SetTextColor(Color(100, 255, 100))
+                        elseif newStatus == "Devam Ediyor" then
+                            selectedLine.Columns[4]:SetTextColor(Color(255, 200, 0))
+                        elseif newStatus == "Beklemede" then
+                            selectedLine.Columns[4]:SetTextColor(Color(200, 200, 200))
+                        elseif newStatus == "Iptal" then
+                            selectedLine.Columns[4]:SetTextColor(Color(255, 100, 100))
+                        else
+                            selectedLine.Columns[4]:SetTextColor(Color(0, 200, 255))
+                        end
+                    end
+                    
+                    chat.AddText(Color(0, 120, 255), "[FIB] ", Color(65, 255, 65), "Gorev durumu guncellendi!")
+                    statusDialog:Close()
+                end
+            end
+        end
     else
         -- Şef değilse bilgilendirme
         local infoLabel = vgui.Create("DLabel", missionPanel)
         infoLabel:SetPos(20, 380)
-        infoLabel:SetSize(500, 30)
-        infoLabel:SetText("* Gorev olusturma yetkisi: Sef ve Kidemli Ajan")
+        infoLabel:SetSize(600, 30)
+        infoLabel:SetText("* Gorev olusturma yetkisi: Sef ve Kidemli Ajan | Durum duzenleme: Sadece Sef")
         infoLabel:SetTextColor(Color(255, 200, 0))
         infoLabel:SetFont("FIB_Menu_Text")
     end
     
-    -- DEPARTMAN YÖNETİMİ
+    -- DEPARTMAN YÖNETİMİ (kalan kısım aynı)
     local deptPanel = vgui.Create("DPanel", contentArea)
     deptPanel:Dock(FILL)
     deptPanel:DockMargin(10, 10, 10, 10)
