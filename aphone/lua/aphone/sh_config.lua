@@ -5,26 +5,98 @@
 
 aphone.GPS = {
 	-- Example
+	
+		{
+		name = "Şehir Merkezi",
+		vec = Vector(-1393.242920, -1590.796875, -131.968750),
+		clr = Color(255, 153, 0),
+		icon = "N",
+	},
+	
 	{
-		name = "Wood House - Marker",
-		vec = Vector(-1531.884644, 2484.743896, 112.031250),
+		name = "Polis Departmanı",
+		vec = Vector(-1413.900757, 124.499863, -131.968750),
+		clr = Color(255, 153, 0),
+		icon = "O",
+	},
+	
+		{
+		name = "Adalet Sarayı",
+		vec = Vector(-1462.968750, -422.430939, -95.968750),
 		clr = Color(255, 153, 0),
 		icon = "O",
 	},
 
 	{
-		name = "Wood House - Health",
-		vec = Vector(-1531.884644, 2484.743896, 112.031250),
+		name = "Şehir Hastanesi",
+		vec = Vector(3103.801758, 1275.504150, -131.968750),
 		clr = Color(255, 153, 0),
 		icon = "N",
 	},
 
 	{
-		name = "Wood House - Papers",
-		vec = Vector(-1531.884644, 2484.743896, 112.031250),
+		name = "Merkez Bankası",
+		vec = Vector(-3027.531250, -1618.352417, -131.968750),
 		clr = Color(255, 153, 0),
-		icon = "Q",
-		map_restricted = "rp_rockford_v2b",
+		icon = "O",
+	},
+
+	{
+		name = "Amerikan Mahallesi ",
+		vec = Vector(1374.407959, 9019.948242, -136.968750),
+		clr = Color(255, 153, 0),
+		icon = "O",
+	},
+	
+		{
+		name = "Orman Bölgesi",
+		vec = Vector(9821.312500, 3976.435303, -142.894669),
+		clr = Color(255, 153, 0),
+		icon = "O",
+	},
+	
+			{
+		name = "Galeri",
+		vec = Vector(-1242.017212, -7441.568848, -137.968719),
+		clr = Color(255, 153, 0),
+		icon = "O",
+	},
+	
+				{
+		name = "Sanayi Bölgesi",
+		vec = Vector(-3658.710205, 1422.352417, -127.629021),
+		clr = Color(255, 153, 0),
+		icon = "O",
+	},
+	
+					{
+		name = "Yarış Pisti",
+		vec = Vector(-2582.133057, -9839.744141, -139.968750),
+		clr = Color(255, 153, 0),
+		icon = "O",
+	},
+	
+						{
+		name = "Sahil",
+		vec = Vector(3182.571289, -1432.381714, -131.968750),
+		clr = Color(255, 153, 0),
+		icon = "O",
+	},
+	
+							{
+		name = "Night Club",
+		vec = Vector(2220.083740, -666.002441, -131.968750),
+		clr = Color(255, 153, 0),
+		icon = "O",
+	},
+	
+
+	
+							{
+		name = "Poligon",
+		vec = Vector(595.210938, 1410.080566, -131.968750),
+		clr = Color(255, 153, 0),
+		icon = "O",
 	},
 }
 
@@ -79,14 +151,14 @@ aphone.agressive_smileys_nodrawDetect = false // Use the hook PrePlayerDraw, can
 
 aphone.Links = {
 	{
-		name = "Shop",
+		name = "VIP AL!",
 		icon = "akulla/aphone/app_shop.png",
-		link = "https://akulla.dev/",
+		link = "https://gmodbaso.network/store/dark-roleplay/",
 	},
 	{
 		name = "Discord",
 		icon = "akulla/aphone/app_socialserver.png",
-		link = "https://akulla.dev/",
+		link = "https://discord.gg/basodark",
 	},
 }
 
@@ -114,11 +186,11 @@ aphone.Ringtones = {
 aphone.DarkWeb = aphone.DarkWeb or {
 	config = {
 		viewing_jobs = {
-			["Citizen"] = true,
+			["vatandas"] = true,
 		},
 
 		killing_jobs = {
-			["Citizen"] = true,
+			["tetikci"] = true,
 		},
 
 		min = -1, // > 0 to have a min amount

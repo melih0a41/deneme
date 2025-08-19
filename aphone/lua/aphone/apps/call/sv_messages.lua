@@ -187,7 +187,28 @@ net.Receive("aphone_NewMessage", function(_, ply)
     local user_id = is_friends and 0 or net.ReadUInt(32)
     local body = net.ReadString()
 
-    if user_id >= 0 and string.len(body) > 0 and string.len(body) < 120 then
-        add(ply, user_id, body, is_friends)
+    -- Mevcut kayıt/dağıtım
+    add(ply, user_id, body, is_friends)
+
+    -- Bildirim (tweet) tetikleyici
+    if is_friends and APHONE_PUSH and APHONE_PUSH.NotifyTweet then
+        local handle = "@" .. (IsValid(ply) and ply:Nick() or "unknown")
+
+        local img
+        if isstring(body) then
+            local b = string.lower(body)
+            if string.StartWith(body, "imgur://") then
+                img = body
+            elseif string.find(b, "^https?://") and (string.find(b, "%.png") or string.find(b, "%.jpe?g") or string.find(b, "%.webp")) then
+                img = body
+            end
+        end
+
+        local text = body
+        if img and (not body or body == "" or string.StartWith(body, "imgur://")) then
+            text = "Fotoğraf paylaşıldı"
+        end
+
+        APHONE_PUSH.NotifyTweet(ply, handle, text, img)
     end
 end)
