@@ -1,0 +1,189 @@
+/*
+/////      ///////   //   //  /////////  ///////  ////////
+///  ///   ///       // //       ///     ///      ///  ///
+///  ///   //////     ///        ///     ///////  ///////
+///  ///   ///       // //       ///     ///      ///  ///
+/////      ///////  //   //      ///     ///////  ///  ///
+*/
+
+DEX_LANG = {}
+DEX_CONFIG = DEX_CONFIG or {}
+DEX_GAGGED_PLAYERS = DEX_GAGGED_PLAYERS or {}
+
+DEX_CONFIG.Language = "tr" -- Can be "en", "pt", "tr", "es", "fr"
+
+-- Minimum and maximum time (in seconds) the player will stay as ragdoll in syringe
+DEX_CONFIG.RagdollTimeMin = 120
+DEX_CONFIG.RagdollTimeMax = 300 
+
+DEX_CONFIG.TimeToGetUp = 300 -- the player will stay in bed
+
+DEX_CONFIG.OnlyJob = true        -- Only allow serial killer job to use phone
+
+-- ========== ENTITY ==========
+
+DEX_CONFIG.TimeBag = 100 -- Time in seconds before the bag despawns
+DEX_CONFIG.EnableUndoForPurchasedProps = true  -- Enable or disable undo support for bought props
+DEX_CONFIG.BoxSwep = "weapon_fists" -- Important to use a weapon the player normally holds, not the physgun, e.g. "weapon_fists", to avoid bugs
+DEX_CONFIG.DisableDespawnOnJobChange = false -- Set to true to disable despawning when changing jobs
+DEX_CONFIG.DisableSyringeSecondaryAttack = false -- Set to true to disable right-click on the syringe
+DEX_CONFIG.GiveBagSWEP = true -- If true, gives the dex_w_bag weapon to the player; if false, spawns the bag entity directly
+
+-- ========== SANITY ==========
+DEX_CONFIG.SanitySystemEnabled = true              -- Enable/disable the entire sanity system
+DEX_CONFIG.SanityStart = 100                       -- Initial sanity
+DEX_CONFIG.SanityDrainInterval = 50                -- Drain interval in seconds
+DEX_CONFIG.SanityDrainAmount = 1                   -- Amount drained each time
+DEX_CONFIG.SanityCritical = 20                     -- Critical value to trigger effects
+DEX_CONFIG.SanityEnableEffects = true              -- Enable/disable effects (sounds, blood, screen)
+
+-- ========== DAMAGE SETTINGS ==========
+DEX_CONFIG.BoneDamageMultiplier = 1.0 -- Damage multiplier for bones (1.0 = normal, 2.0 = double, 0.5 = half, etc.)
+
+-- ========== FILE INCLUSION ==========
+local function lua_file(name, cl)
+    local full_name = "dex/" .. name .. ".lua"
+    AddCSLuaFile(full_name)
+
+    if not (cl and SERVER) then
+        include(full_name)
+    end
+end
+
+lua_file("dismemberment")
+
+function DEX_LANG.Get(key)
+    local lang = DEX_CONFIG.Language or "en"
+    return (DEX_LANG[lang] and DEX_LANG[lang][key]) or "[[" .. key .. "]]"
+end
+
+AddCSLuaFile("dex/dex_lang.lua")
+include("dex/dex_lang.lua")
+
+-- ========== ITEMS ==========
+DEX_CONFIG.ItemsToBuy = {
+    {
+        name = DEX_LANG.Get("box_print_name"), 
+        model = "models/blood/box.mdl",
+        entidade = "dex_box", 
+        price = 100,
+        offset = 0,
+        isSWEP = false,
+        image = "vgui/items/box.png"
+    },
+    {
+        name = DEX_LANG.Get("table_print_name"), 
+        model = "models/blood/table.mdl",
+        entidade = "dex_bed", 
+        price = 150,
+        offset = 20,
+        isSWEP = false,
+        image = "vgui/items/table.png"
+    },
+
+}
+-- ========== FUNCTIONS ==========
+timer.Simple(0, function()
+    DEX_CONFIG.AllowedSerialKillerTeams = {
+        TEAM_SERIALKILLER
+    }
+end)
+
+function DEX_CONFIG.IsSerialKiller(ply)
+    return table.HasValue(DEX_CONFIG.AllowedSerialKillerTeams or {}, ply:Team())
+end
+-- ========== HOOK ==========
+hook.Add("PlayerCanHearPlayersVoice", "dex_BlockVoice", function(listener, talker)
+    if DEX_GAGGED_PLAYERS and DEX_GAGGED_PLAYERS[talker] then
+        return false, false
+    end
+end)
+
+hook.Add("PlayerSay", "dex_BlockChat", function(ply, text)
+    if DEX_GAGGED_PLAYERS and DEX_GAGGED_PLAYERS[ply] then
+        return ""
+    end
+end)
+
+hook.Add("PlayerSay", "dex_BlockCommandsWhenRagdoll", function(ply, text)
+    if ply:GetNWBool("IsInRagdoll") and (string.StartWith(text, "!") or string.StartWith(text, "/")) then
+        return ""
+    end
+end)
+
+-- MASADA İNTİHARI ENGELLE
+hook.Add("CanPlayerSuicide", "dex_BlockSuicideWhenRagdoll", function(ply)
+    if ply:GetNWBool("IsInRagdoll") then
+        return false
+    end
+    
+    -- MASADA YATARKEN İNTİHARI ENGELLE
+    if ply.IsOnBed then
+        if SERVER then
+            ply:ChatPrint("[DEX] Masada yatarken intihar edemezsiniz!")
+        end
+        return false
+    end
+end)
+
+-- KONSOL KOMUTLARINI ENGELLE
+if SERVER then
+    -- Kill komutunu override et
+    local oldKillCommand = concommand.GetTable()["kill"]
+    concommand.Remove("kill")
+    
+    concommand.Add("kill", function(ply, cmd, args)
+        if IsValid(ply) then
+            -- Ragdoll durumunda veya masada yatıyorsa engelle
+            if ply:GetNWBool("IsInRagdoll") or ply.IsOnBed then
+                ply:ChatPrint("[DEX] Şu anda bu komutu kullanamazsınız!")
+                return
+            end
+        end
+        
+        -- Normal kill işlemi
+        if oldKillCommand and oldKillCommand.Func then
+            oldKillCommand.Func(ply, cmd, args)
+        elseif IsValid(ply) and ply:Alive() then
+            ply:Kill()
+        end
+    end)
+    
+    -- Explode komutunu override et
+    local oldExplodeCommand = concommand.GetTable()["explode"]
+    concommand.Remove("explode")
+    
+    concommand.Add("explode", function(ply, cmd, args)
+        if IsValid(ply) then
+            -- Ragdoll durumunda veya masada yatıyorsa engelle
+            if ply:GetNWBool("IsInRagdoll") or ply.IsOnBed then
+                ply:ChatPrint("[DEX] Şu anda bu komutu kullanamazsınız!")
+                return
+            end
+        end
+        
+        -- Normal explode işlemi
+        if oldExplodeCommand and oldExplodeCommand.Func then
+            oldExplodeCommand.Func(ply, cmd, args)
+        elseif IsValid(ply) and ply:Alive() then
+            local dmg = DamageInfo()
+            dmg:SetDamage(ply:Health())
+            dmg:SetDamageType(DMG_BLAST)
+            dmg:SetAttacker(ply)
+            dmg:SetInflictor(ply)
+            ply:TakeDamageInfo(dmg)
+        end
+    end)
+end
+
+-- ========== LOGO ==========
+
+list.Set( "ContentCategoryIcons", "Dex's Addons", "vgui/dexicon.png" )
+
+print([[
+/////      ///////   //   //  /////////  ///////  ////////
+///  ///   ///       // //       ///     ///      ///  ///
+///  ///   //////     ///        ///     ///////  ///////
+///  ///   ///       // //       ///     ///      ///  ///
+/////      ///////  //   //      ///     ///////  ///  ///
+]])
