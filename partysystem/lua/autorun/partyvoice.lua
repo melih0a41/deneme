@@ -1,0 +1,3 @@
+-- Party System Voice Chat ÖZELLİĞİ KALDIRILDI
+-- Performans için devre dışı bırakıldı
+-- Bu dosya boş bırakılabilir veya silinebilir
